@@ -1,0 +1,210 @@
+Public nrRows
+Public nrCols
+
+Public Sub getNrRows()
+    nrRows = 100
+    nrRows = CInt(txtRows.Text) + 1
+    If (nrRows > 255) Then
+      nrRows = 255
+      txtRows.Text = 254
+      MsgBox "Number of Rows too big! It was set 254", 64, ""
+    End If
+End Sub
+
+Public Sub getNrCols()
+    nrCols = 100
+    nrCols = CInt(txtColumns.Text) + 1
+    If (nrCols > 255) Then
+      nrCols = 255
+      txtColumns.Text = 254
+      MsgBox "Number of Columns too big! It was set 254", 64, ""
+    End If
+End Sub
+
+Private Sub CommandButton1_Click()
+    Call getNrRows
+    Call getNrCols
+    Call Numbering
+    Call SetResolutionXY
+    Call FillWorksheet
+End Sub
+
+Public Sub SetResolutionXY()
+    Dim i As Integer
+        For i = 1 To nrDim
+            Rows(i).RowHeight = 15
+        Next i
+        For i = 1 To nrCols
+            Columns(i).ColumnWidth = 5
+        Next i
+End Sub
+ Public Sub FillWorksheet()
+    Dim nr1 As Integer
+    Dim nr2 As Byte
+    Dim i As Integer
+    Dim j As Integer
+    Dim nrZero As Integer
+    
+    If rbtnRandom.Value Then
+     If rbtnDTM.Value Then
+      For i = 2 To nrRows
+        For j = 2 To nrCols
+            Randomize
+            nr1 = Rand(1, 9000)
+            Cells(i, j) = nr1
+        Next j
+     Next i
+    ElseIf rbtnClutter.Value Then
+     For i = 2 To nrRows
+        For j = 2 To nrCols
+            Randomize
+            nr2 = Rand(1, 254)
+            Cells(i, j) = nr2
+        Next j
+     Next i
+    End If
+    ElseIf rbtnZeros.Value Then
+    For i = 2 To nrRows
+        For j = 2 To nrCols
+        nrZero = 0
+            Cells(i, j) = nrZero
+        Next j
+     Next i
+     End If
+End Sub
+
+Private Sub CommandButton2_Click()
+    Unload Me
+End Sub
+
+Private Sub CommandButton3_Click()
+Dim headerFileName As String
+CommonDialog1.CancelError = True
+On Error GoTo ErrorSave
+    CommonDialog1.ShowSave
+    CommonDialog1.CancelError = True
+    Call WriteBinaryFile(CommonDialog1.Filename)
+    headerFileName = VBA.Mid$(CommonDialog1.Filename, 1, Len(CommonDialog1.Filename) - 3)
+    Call WriteTextFile(headerFileName + "hdr")
+    MsgBox "Binary map created!", 64, ""
+    Exit Sub
+ErrorSave:
+    MsgBox "Error: Binary map not created!", 64, ""
+Exit Sub
+End Sub
+
+Sub WriteBinaryFile(sFilenameToWrite As String)
+
+    Dim i As Integer
+    Dim j As Integer
+    Dim nFileNum As Integer
+    Dim nr1 As Integer
+    Dim nr2 As Byte
+    nFileNum = FreeFile
+    Open sFilenameToWrite For Binary Access Write As #nFileNum
+    Call getNrRows
+    Call getNrCols
+    For i = 2 To nrRows
+        For j = 2 To nrCols
+            If rbtnDTM.Value Then
+                nr1 = Cells(i, j).Value
+                Put #nFileNum, , nr1
+            ElseIf rbtnClutter.Value Then
+                nr2 = Cells(i, j).Value
+                Put #nFileNum, , nr2
+            End If
+        Next j
+    Next i
+
+    Close #nFileNum
+
+End Sub
+
+Sub WriteTextFile(sFilename As String)
+    Dim nFileNum As Integer
+    nFileNum = FreeFile
+    
+    Call getNrRows
+    Call getNrCols
+    
+    Open sFilename For Output As #nFileNum
+        Print #nFileNum, "BYTEORDER I"
+        Print #nFileNum, "LAYOUT BIL"
+        Print #nFileNum, "NROWS " + CStr(nrRows - 1)
+        Print #nFileNum, "NCOLS " + CStr(nrCols - 1)
+        Print #nFileNum, "NBANDS 1"
+        If rbtnClutter.Value Then
+            Print #nFileNum, "NBITS 8"
+        ElseIf rbtnDTM.Value Then
+            Print #nFileNum, "NBITS 16"
+        End If
+        Print #nFileNum, "ULXMAP 0"
+        Print #nFileNum, "ULYMAP 0"
+        Print #nFileNum, "XDIM " + txtResolution.Text
+        Print #nFileNum, "YDIM " + txtResolution.Text
+    Close #nFileNum
+End Sub
+
+Private Sub CommandButton4_Click()
+CommonDialog1.CancelError = True
+    On Error GoTo ErrorOpen
+    CommonDialog1.ShowOpen
+    Call ReadBinaryFile(CommonDialog1.Filename)
+    MsgBox "Map imported!", 64, ""
+ErrorOpen:
+    Exit Sub
+End Sub
+Sub ReadBinaryFile(sFilenameToRead As String)
+
+    Dim i As Integer
+    Dim j As Integer
+    Dim nFileNum As Integer
+    Dim nr1 As Integer
+    Dim nr2 As Byte
+    nFileNum = FreeFile
+    Open sFilenameToRead For Binary Access Read As #nFileNum
+
+    i = 2
+    Do While i <= nrRows
+    j = 2
+        Do Until (EOF(nFileNum) Or j > nrCols)
+            If rbtnDTM.Value Then
+                Get #nFileNum, , nr1
+                Cells(i, j) = nr1
+            ElseIf rbtnClutter.Value Then
+                Get #nFileNum, , nr2
+                Cells(i, j) = nr2
+            End If
+        j = j + 1
+        Loop
+    i = i + 1
+    Loop
+
+    Close #nFileNum
+
+End Sub
+
+Public Function Rand(ByVal Low As Long, ByVal High As Long) As Long
+    Rand = Int((High - Low + 1) * Rnd) + Low
+End Function
+
+Private Sub UserForm_Activate()
+    CommonDialog1.Filter = "Binary Files(*.bil)|*.bil|All"
+End Sub
+
+Public Sub Numbering()
+
+ Dim i As Integer
+    For i = 1 To nrDim - 1
+        Cells(1, 1) = ""
+        Cells(1, 1).Interior.ColorIndex = 36
+        Cells(1, 1).Borders.Color = &H4000&
+        Cells(i + 1, 1) = i
+        Cells(i + 1, 1).Interior.ColorIndex = 36
+        Cells(i + 1, 1).Borders.Color = &H4000&
+        Cells(1, i + 1) = i
+        Cells(1, i + 1).Interior.ColorIndex = 36
+        Cells(1, i + 1).Borders.Color = &H4000&
+    Next i
+
+End Sub
